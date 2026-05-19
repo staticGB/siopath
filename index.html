@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Survivor.io Path Solver</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: #0c0e17;
+            background-image:
+                radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%),
+                radial-gradient(at 50% 0%, hsla(225,39%,30%,0.15) 0, transparent 50%);
+        }
+
+       .brush-active {
+            border-color: #6366f1!important;
+            box-shadow: 0 0 12px rgba(99, 102, 241, 0.3);
+            background-color: rgba(15, 23, 42, 0.8)!important;
+        }
+
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: rgba(15, 12, 30, 0.5); }
+        ::-webkit-scrollbar-thumb { background: #4f46e5; border-radius: 4px; }
+
+        @keyframes dash { to { stroke-dashoffset: -40; } }
+       .path-line { stroke-dasharray: 8, 4; animation: dash 1.5s linear infinite; }
+
+       .cell-highlight {
+            outline: 3px solid #fbbf24;
+            outline-offset: -3px;
+            z-index: 25;
+        }
+    </style>
+</head>
+<body class="text-slate-100 min-h-screen pb-12">
+
+    <div class="w-full text-center pt-8 pb-4">
+        <h1 class="font-extrabold text-2xl tracking-tight bg-gradient-to-r from-pink-400 via-rose-400 to-purple-400 bg-clip-text text-transparent">
+            Survivor.io Path Solver
+        </h1>
+    </div>
+
+    <main class="max-w-6xl mx-auto px-4 mt-4 grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
+
+        <!-- Left Sidebar -->
+        <div class="md:col-span-4 lg:col-span-3 space-y-3">
+            <div class="space-y-3">
+                <button onclick="setGlobalBrush('0')" id="brush-0" class="brush-btn w-full text-left p-3 rounded-xl border border-slate-800/80 bg-slate-900/40 hover:bg-slate-900/60 transition flex items-center gap-4">
+                    <div class="w-8 h-8 rounded-lg bg-[#d4f20d] border border-black flex items-center justify-center shadow-sm">
+                        <div class="w-1.5 h-1.5 rounded-full bg-black/15"></div>
+                    </div>
+                    <div>
+                        <div class="text-xs font-bold text-slate-300">Empty Tile</div>
+                        <div class="text-[10px] text-slate-500">0 pts</div>
+                    </div>
+                </button>
+
+                <button onclick="setGlobalBrush('5')" id="brush-5" class="brush-btn w-full text-left p-3 rounded-xl border border-slate-800/80 bg-slate-900/40 hover:bg-slate-900/60 transition flex items-center gap-4">
+                    <img src="tealchest.png" class="w-8 h-8 object-contain drop-shadow-sm" alt="Teal Chest" onerror="this.style.display='none'">
+                    <div>
+                        <div class="text-xs font-bold text-teal-400">Teal</div>
+                        <div class="text-[10px] text-teal-500">5 pts</div>
+                    </div>
+                </button>
+
+                <button onclick="setGlobalBrush('11')" id="brush-11" class="brush-btn w-full text-left p-3 rounded-xl border border-slate-800/80 bg-slate-900/40 hover:bg-slate-900/60 transition flex items-center gap-4">
+                    <img src="purplechest.png" class="w-8 h-8 object-contain drop-shadow-sm" alt="Purple Chest" onerror="this.style.display='none'">
+                    <div>
+                        <div class="text-xs font-bold text-fuchsia-400">Purple</div>
+                        <div class="text-[10px] text-fuchsia-500">11 pts</div>
+                    </div>
+                </button>
+
+                <button onclick="setGlobalBrush('28')" id="brush-28" class="brush-btn w-full text-left p-3 rounded-xl border border-slate-800/80 bg-slate-900/40 hover:bg-slate-900/60 transition flex items-center gap-4">
+                    <img src="redchest.png" class="w-8 h-8 object-contain drop-shadow-sm" alt="Red Chest" onerror="this.style.display='none'">
+                    <div>
+                        <div class="text-xs font-bold text-rose-400">Red</div>
+                        <div class="text-[10px] text-rose-500">28 pts</div>
+                    </div>
+                </button>
+            </div>
+
+            <!-- Stats -->
+            <div class="space-y-3 pt-2">
+                <div class="bg-slate-900/40 border border-slate-800/80 p-3.5 rounded-xl text-center">
+                    <span class="text-[9px] text-slate-400 block uppercase font-bold tracking-wider mb-1">Total Points on Board</span>
+                    <span id="stat-max-points" class="text-2xl font-black text-rose-500">0</span>
+                </div>
+                <div class="bg-slate-900/40 border border-slate-800/80 p-3.5 rounded-xl text-center">
+                    <span class="text-[9px] text-slate-400 block uppercase font-bold tracking-wider mb-1">Active Path Yield (15 Steps)</span>
+                    <span id="stat-path-yield" class="text-2xl font-black text-green-400">0</span>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 pt-2">
+                <button onclick="calculateOptimalPath()" class="glowing-btn py-2.5 bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 text-white rounded-xl text-xs font-extrabold shadow-lg shadow-indigo-500/10 flex items-center justify-center gap-1.5 transition">
+                    <i data-lucide="play" class="w-4 h-4"></i> SOLVE
+                </button>
+                <button onclick="resetBoard()" class="py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700/60 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition">
+                    <i data-lucide="rotate-ccw" class="w-4 h-4"></i> RESET
+                </button>
+            </div>
+        </div>
+
+        <div class="md:col-span-8 lg:col-span-9 flex flex-col items-center">
+            <div class="relative p-2 bg-black rounded-3xl shadow-2xl w-full max-w-lg">
+                <svg id="path-svg" class="absolute inset-0 w-full h-full pointer-events-none z-10" style="display: none;"></svg>
+                <div id="board-grid" class="grid grid-cols-7 gap-1 w-full aspect-[7/9] bg-black rounded-2xl overflow-hidden">
+                </div>
+            </div>
+
+            <div id="walkthrough-panel" class="w-full max-w-lg mt-4 bg-slate-950/70 border border-slate-800/80 p-4 rounded-xl hidden">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <span class="text-xs text-slate-400 font-medium block">Interactive Walkthrough</span>
+                        <span id="walkthrough-status" class="text-[11px] text-indigo-400 font-bold">Step 0 / 15</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button id="walkthrough-prev" class="p-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-300 disabled:opacity-30 disabled:pointer-events-none transition">
+                            <i data-lucide="chevron-left" class="w-4 h-4"></i>
+                        </button>
+                        <button id="walkthrough-next" class="p-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-300 disabled:opacity-30 disabled:pointer-events-none transition">
+                            <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                        </button>
+                        <button id="walkthrough-close" class="p-1.5 bg-slate-800/50 hover:bg-rose-950/40 hover:text-rose-400 rounded-lg text-slate-400 transition ml-2">
+                            <i data-lucide="x" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div id="result-summary" class="w-full max-w-lg mt-4 text-center text-xs text-slate-400 hidden"></div>
+        </div>
+    </main>
+
+    <script>
+        const ROWS = 9;
+        const COLS = 7;
+        const START_ROW = 4;
+        const START_COL = 3;
+        const START_CELL_INDEX = START_ROW * COLS + START_COL;
+        const STEP_LIMIT = 15;
+
+        let boardState = Array(ROWS * COLS).fill(0);
+        let currentBrush = null;
+        let computedPath = [];
+        let walkthroughStep = -1;
+
+        window.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            initBoard();
+            setGlobalBrush('0');
+            document.getElementById('walkthrough-close').onclick = closeWalkthrough;
+
+            window.addEventListener('resize', () => {
+                if (computedPath.length > 1) drawOptimalPath(computedPath);
+            });
+        });
+
+        function initBoard() {
+            const gridContainer = document.getElementById('board-grid');
+            gridContainer.innerHTML = '';
+            for (let i = 0; i < ROWS * COLS; i++) {
+                const cell = document.createElement('div');
+                cell.id = `cell-${i}`;
+                if (i === START_CELL_INDEX) {
+                    cell.className = "aspect-square relative flex flex-col items-center justify-center bg-[#d4f20d] select-none cursor-not-allowed";
+                    cell.innerHTML = getExplorerGirlSVG();
+                } else {
+                    cell.className = "aspect-square relative flex flex-col items-center justify-center bg-[#d4f20d] hover:bg-[#c2de0b] transition cursor-pointer select-none group";
+                    cell.addEventListener('click', () => handleCellClick(i));
+                    updateCellUI(cell, 0);
+                }
+                gridContainer.appendChild(cell);
+            }
+        }
+
+        function getExplorerGirlSVG() {
+            return `<div class="relative w-full h-full flex items-center justify-center z-30 p-1">
+                <img src="kingsprite.png" class="w-11 h-11 max-w-[85%] max-h-[85%] object-contain drop-shadow-[0_2px_5px_rgba(0,0,0,0.6)]" alt="King Sprite" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22%236366f1%22%3E%3Cpath d=%22M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z%22/%3E%3C/svg%3E'">
+            </div>`;
+        }
+
+        function getChestSVG(type) {
+            let src = '';
+            let label = '';
+            let color = '';
+
+            if (type === 'teal') {
+                src = 'tealchest.png';
+                label = '5';
+                color = 'text-teal-400';
+            }
+            else if (type === 'purple') {
+                src = 'purplechest.png';
+                label = '11';
+                color = 'text-fuchsia-400';
+            }
+            else if (type === 'red') {
+                src = 'redchest.png';
+                label = '28';
+                color = 'text-rose-400';
+            }
+
+            return `
+                <div class="w-full h-full flex flex-col items-center justify-center relative select-none z-20 p-0.5 group">
+                    <img src="${src}" class="w-10 h-10 max-w-[85%] max-h-[85%] object-contain drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)]" alt="${type} chest" onerror="this.style.display='none'">
+                    <span class="absolute bottom-[2px] right-[4px] text-[8px] bg-slate-950 px-1 border border-slate-700/60 font-black rounded ${color} z-30">${label}</span>
+                </div>
+            `;
+        }
+
+        function updateCellUI(cell, val) {
+            cell.innerHTML = '';
+            cell.className = "aspect-square relative flex flex-col items-center justify-center bg-[#d4f20d] hover:bg-[#c2de0b] transition cursor-pointer select-none group";
+            if (val === 5) cell.innerHTML = getChestSVG('teal');
+            else if (val === 11) cell.innerHTML = getChestSVG('purple');
+            else if (val === 28) cell.innerHTML = getChestSVG('red');
+            else cell.innerHTML = `<div class="w-1.5 h-1.5 rounded-full bg-black/15 group-hover:bg-black/30 transition duration-200"></div>`;
+            updateStatMaxPoints();
+        }
+
+        function handleCellClick(index) {
+            if (index === START_CELL_INDEX) return;
+            if (currentBrush!== null) boardState[index] = parseInt(currentBrush);
+            else {
+                const currentVal = boardState[index];
+                if (currentVal === 0) boardState[index] = 5;
+                else if (currentVal === 5) boardState[index] = 11;
+                else if (currentVal === 11) boardState[index] = 28;
+                else boardState[index] = 0;
+            }
+            updateCellUI(document.getElementById(`cell-${index}`), boardState[index]);
+            hideComputedPath();
+        }
+
+        function setGlobalBrush(val) {
+            currentBrush = val;
+            document.querySelectorAll('.brush-btn').forEach(btn => btn.classList.remove('brush-active'));
+            const selectedBtn = document.getElementById(`brush-${val}`);
+            if (selectedBtn) selectedBtn.classList.add('brush-active');
+        }
+
+        function resetBoard() {
+            boardState.fill(0);
+            for (let i = 0; i < ROWS * COLS; i++) {
+                if (i!== START_CELL_INDEX) {
+                    const cell = document.getElementById(`cell-${i}`);
+                    updateCellUI(cell, 0);
+                    cell.style.opacity = "1";
+                    cell.classList.remove('cell-highlight');
+                }
+            }
+            computedPath = [];
+            walkthroughStep = -1;
+            hideComputedPath();
+            document.getElementById('stat-path-yield').textContent = '0';
+        }
+
+        function updateStatMaxPoints() {
+            document.getElementById('stat-max-points').textContent = boardState.reduce((a, b) => a + b, 0);
+        }
+
+        function calculateOptimalPath() {
+            let grid = [];
+            for (let i = 0; i < ROWS; i++) grid.push(boardState.slice(i * COLS, (i + 1) * COLS));
+            const result = runOptimalSolver(grid, START_ROW, START_COL, STEP_LIMIT);
+            if (result && result.path.length > 1) {
+                computedPath = result.path.map(p => p.r * COLS + p.c);
+                drawOptimalPath(computedPath);
+                document.getElementById('stat-path-yield').textContent = result.score;
+                const scoreSummary = document.getElementById('result-summary');
+                scoreSummary.innerHTML = `<span class="text-green-400 font-bold">Optimal route mapped!</span> Yields <strong class="text-white">${result.score} points</strong>.`;
+                scoreSummary.classList.remove('hidden');
+                setupWalkthrough(computedPath);
+            } else {
+                alert("No legal path found. Try adding some chests to the board.");
+                hideComputedPath();
+            }
+        }
+
+        function runOptimalSolver(grid, startR, startC, maxSteps) {
+            let maxScore = -1, bestPath = [];
+            let allRewards = boardState.filter((v, i) => v > 0 && i!== START_CELL_INDEX).sort((a,b) => b-a);
+            let visited = Array.from({length: ROWS}, () => Array(COLS).fill(false));
+            visited[startR][startC] = true;
+
+            function backtrack(r, c, steps, score, path) {
+                if (steps === 0) {
+                    if (score > maxScore) { maxScore = score; bestPath = [...path]; }
+                    return;
+                }
+                let potential = 0, count = Math.min(steps, allRewards.length);
+                for(let i=0; i<count; i++) potential += allRewards[i];
+                if (score + potential <= maxScore) return;
+
+                const directions = [{dr:-1, dc:0}, {dr:1, dc:0}, {dr:0, dc:-1}, {dr:0, dc:1}];
+                for (let d of directions) {
+                    const nr = r + d.dr, nc = c + d.dc;
+                    if (nr >=0 && nr < ROWS && nc >= 0 && nc < COLS &&!visited[nr][nc]) {
+                        visited[nr][nc] = true;
+                        path.push({r:nr, c:nc});
+                        backtrack(nr, nc, steps - 1, score + grid[nr][nc], path);
+                        path.pop();
+                        visited[nr][nc] = false;
+                    }
+                }
+            }
+            backtrack(startR, startC, maxSteps, 0, [{r:startR, c:startC}]);
+            const finalScore = bestPath.slice(1).reduce((a, p) => a + grid[p.r][p.c], 0);
+            return { path: bestPath, score: finalScore };
+        }
+
+        function drawOptimalPath(pathIndices) {
+            const svg = document.getElementById('path-svg'), container = document.getElementById('board-grid');
+            svg.innerHTML = '';
+            svg.style.display = 'block';
+            const rect = container.getBoundingClientRect();
+            svg.setAttribute('viewBox', `0 0 ${rect.width} ${rect.height}`);
+
+            const gridRect = container.getBoundingClientRect();
+            let points = pathIndices.map(idx => {
+                const el = document.getElementById(`cell-${idx}`).getBoundingClientRect();
+                return {
+                    x: (el.left + el.width/2) - gridRect.left,
+                    y: (el.top + el.height/2) - gridRect.top
+                };
+            });
+            const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+            path.setAttribute("d", points.map((p,i) => `${i===0?'M':'L'} ${p.x} ${p.y}`).join(' '));
+            path.setAttribute("fill", "none");
+            path.setAttribute("stroke", "#6366f1");
+            path.setAttribute("stroke-width", "5");
+            path.setAttribute("class", "path-line");
+            path.setAttribute("stroke-linecap", "round");
+            path.setAttribute("stroke-linejoin", "round");
+            svg.appendChild(path);
+        }
+
+        function hideComputedPath() {
+            document.getElementById('path-svg').style.display = 'none';
+            document.getElementById('result-summary').classList.add('hidden');
+            document.getElementById('walkthrough-panel').classList.add('hidden');
+        }
+
+        function closeWalkthrough() {
+            document.getElementById('walkthrough-panel').classList.add('hidden');
+            for (let i = 0; i < ROWS * COLS; i++) {
+                const cell = document.getElementById(`cell-${i}`);
+                cell.style.opacity = "1";
+                cell.classList.remove('cell-highlight');
+            }
+            walkthroughStep = -1;
+        }
+
+        function setupWalkthrough(path) {
+            document.getElementById('walkthrough-panel').classList.remove('hidden');
+            walkthroughStep = 0;
+
+            const update = () => {
+                document.getElementById('walkthrough-status').textContent = `Step ${walkthroughStep} / ${path.length-1}`;
+                document.getElementById('walkthrough-prev').disabled = walkthroughStep === 0;
+                document.getElementById('walkthrough-next').disabled = walkthroughStep === path.length-1;
+
+                path.forEach((idx, i) => {
+                    const cell = document.getElementById(`cell-${idx}`);
+                    cell.style.opacity = (i === walkthroughStep || idx === START_CELL_INDEX)? "1" : "0.2";
+                    cell.classList.toggle('cell-highlight', i === walkthroughStep && idx!== START_CELL_INDEX);
+                });
+                lucide.createIcons();
+            };
+
+            document.getElementById('walkthrough-next').onclick = () => {
+                if(walkthroughStep < path.length-1) { walkthroughStep++; update(); }
+            };
+            document.getElementById('walkthrough-prev').onclick = () => {
+                if(walkthroughStep > 0) { walkthroughStep--; update(); }
+            };
+            update();
+        }
+    </script>
+</body>
+</html>
